@@ -23,7 +23,7 @@ export class CreateUserDto {
     password!: string;
 
     @IsEnum(UserRole, {
-        message: `Valid roles are ${UserRole.Admin}, ${UserRole.VA}`,
+        message: `Valid roles are ${UserRole.ADMIN}, ${UserRole.VA}`,
     })
     role!: UserRole;
 }

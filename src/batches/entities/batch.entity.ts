@@ -1,20 +1,26 @@
+import { Record } from "src/records/entities/record.entity";
 import {
     Entity,
     PrimaryGeneratedColumn,
     Column,
     CreateDateColumn,
+    OneToMany,
 } from "typeorm";
+import { BatchType } from "../enums/batch-type.enum";
 
 @Entity("batches")
 export class Batch {
     @PrimaryGeneratedColumn("uuid")
     id!: string;
 
-    @Column({ unique: true })
-    batch_name!: string;
+    @OneToMany(() => Record, (record) => record.batch_id)
+    records!: Record[];
 
-    @Column()
-    batch_type!: "Daily" | "Weekly";
+    @Column({ unique: true })
+    name!: string;
+
+    @Column({ nullable: false })
+    type!: BatchType;
 
     @CreateDateColumn()
     created_at!: Date;

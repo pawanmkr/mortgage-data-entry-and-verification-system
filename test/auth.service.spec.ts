@@ -30,6 +30,13 @@ describe("AuthService", () => {
                         sign: jest.fn().mockReturnValue("fake-jwt-token"),
                     },
                 },
+                {
+                    provide: require("@nestjs/config").ConfigService,
+                    useValue: {
+                        get: jest.fn(),
+                        getOrThrow: jest.fn(),
+                    },
+                },
             ],
         }).compile();
 
@@ -39,7 +46,10 @@ describe("AuthService", () => {
     it("should validate and login a user", async () => {
         const user = await service.validateUser("test", "secret");
         expect(user).toHaveProperty("username");
-        const token = await service.login(user);
+        if (!user) {
+            throw new Error("User not found");
+        }
+        const token = await service.login(user?.id, user?.username, user?.role);
         expect(token).toHaveProperty("access_token");
     });
 });

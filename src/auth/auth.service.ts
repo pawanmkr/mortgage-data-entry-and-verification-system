@@ -20,13 +20,15 @@ export class AuthService {
 
     async validateUser(username: string, password: string) {
         const user = await this.userRepository.findOne({ where: { username } });
-        this.logger.debug(`User does not exist`);
-        if (!user) return null;
-
+        if (!user) {
+            this.logger.debug(`User does not exist`);
+            return null;
+        }
         const isMatch = await bcrypt.compare(password, user.password_hash);
-        this.logger.debug(`Password did not matched`);
-        if (!isMatch) return null;
-
+        if (!isMatch) {
+            this.logger.debug(`Password did not matched`);
+            return null;
+        }
         const { password_hash, ...result } = user;
         return result;
     }

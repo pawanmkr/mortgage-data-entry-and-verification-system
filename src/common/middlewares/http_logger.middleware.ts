@@ -12,8 +12,8 @@ export class HttpLogger implements NestMiddleware {
         response.on("finish", () => {
             const { statusCode } = response;
             const diff = process.hrtime(startTime);
-            const elapsedMs = diff[0] * 1000 + diff[1] / 1e6; // Convert to milliseconds
-            const elapsedSec = (elapsedMs / 1000).toFixed(2); // Convert to seconds with 2 decimal places
+            const elapsedMs = diff[0] * 1000 + diff[1] / 1e6; // Convert to ms
+            const elapsedSec = (elapsedMs / 1000).toFixed(2); // Convert to secs with 2 decial places
 
             this.logger.log(
                 `${method} ${originalUrl} ${statusCode} - ${elapsedMs.toFixed(

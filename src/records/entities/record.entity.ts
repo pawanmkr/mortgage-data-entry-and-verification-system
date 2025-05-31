@@ -4,12 +4,30 @@ import {
     Column,
     CreateDateColumn,
     UpdateDateColumn,
+    ManyToOne,
+    OneToMany,
 } from "typeorm";
+import { RecordVerificationStatus } from "../enums/record-verification-status.enum";
+import { User } from "../../users/entities/user.entity";
+import { Batch } from "src/batches/entities/batch.entity";
+import { AuditLog } from "src/audit-logs/entities/audit-log.entity";
 
 @Entity("records")
 export class Record {
     @PrimaryGeneratedColumn("uuid")
     id!: string;
+
+    @ManyToOne(() => User, (user) => user.assigned_records)
+    assigned_to!: string;
+
+    @ManyToOne(() => User, (user) => user.created_records)
+    entered_by!: string;
+
+    @ManyToOne(() => Batch, (batch) => batch.records)
+    batch_id!: string;
+
+    @OneToMany(() => AuditLog, (audit_log) => audit_log.record_id)
+    audit_logs!: AuditLog[];
 
     @Column()
     property_address!: string;
@@ -32,26 +50,23 @@ export class Record {
     @Column()
     apn!: string;
 
-    @Column({ default: "Pending" })
-    status!: "Pending" | "Verified" | "Flagged";
+    @Column({ default: RecordVerificationStatus.PENDING })
+    status!: RecordVerificationStatus;
 
-    @Column({ nullable: true })
-    locked_by!: string;
+    @Column({ nullable: true, type: "varchar" })
+    locked_by!: string | null;
 
     @Column({ nullable: true, type: "timestamp" })
-    lock_timestamp!: Date;
-
-    @Column()
-    entered_by!: string;
+    lock_timestamp!: Date | null;
 
     @Column({ type: "timestamp" })
     entered_by_date!: Date;
 
-    @Column({ nullable: true })
-    reviewed_by!: string;
+    @Column({ nullable: true, type: "varchar" })
+    reviewed_by!: string | null;
 
     @Column({ nullable: true, type: "timestamp" })
-    reviewed_by_date!: Date;
+    reviewed_by_date!: Date | null;
 
     @CreateDateColumn()
     created_at!: Date;

@@ -7,7 +7,7 @@ export class AuditLogsController {
     constructor(private readonly service: AuditLogsService) {}
 
     @Post()
-    logAction(@Body() body: Partial<AuditLog>) {
-        return this.service.createLog(body);
+    logAction(@Body() body: Omit<AuditLog, "timestamp">) {
+        return this.service.createAuditLog(body);
     }
 }
