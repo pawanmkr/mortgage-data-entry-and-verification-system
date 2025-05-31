@@ -1,0 +1,47 @@
+# Node dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Optional cache
+.cache/
+.nyc_output/
+
+# Environment variables
+.env
+.env.* # If using multiple environments (e.g., .env.development)
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Jest snapshots
+*.snap
+
+# Docker
+docker-compose.override.yml
+
+#other
+.DS_Store

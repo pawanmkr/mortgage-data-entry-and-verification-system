@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+    postgres:
+        image: postgres:15
+        restart: always
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: mortgage_data
+        ports:
+            - "5432:5432"
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+
+    app:
+        build: .
+        restart: always
+        depends_on:
+            - postgres
+        ports:
+            - "3000:3000"
+        environment:
+            DATABASE_HOST: postgres
+            DATABASE_PORT: 5432
+            DATABASE_USER: postgres
+            DATABASE_PASSWORD: postgres
+            DATABASE_NAME: mortgage_data
+            JWT_SECRET: example_jwt_secret
+        command: npm run start:dev
+volumes:
+    pgdata:
