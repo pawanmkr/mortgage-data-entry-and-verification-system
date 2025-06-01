@@ -1,7 +1,7 @@
 version: "3.8"
 services:
     postgres:
-        image: postgres:15
+        image: ankane/pgvector
         restart: always
         environment:
             POSTGRES_USER: postgres
@@ -27,5 +27,6 @@ services:
             DATABASE_NAME: mortgage_data
             JWT_SECRET: example_jwt_secret
         command: npm run start:dev
+
 volumes:
     pgdata:

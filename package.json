@@ -6,7 +6,14 @@
     "test": "jest",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "build": "nest build"
+    "build": "nest build",
+    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
+    "migration:generate": "npm run typeorm -- migration:generate -d src/data-source.ts",
+    "migration:create": "npm run typeorm -- migration:create",
+    "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",
+    "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts",
+    "seed": "ts-node -r tsconfig-paths/register src/seeds/seeder.ts",
+    "migration:seed": "npm run migration:run && npm run seed"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -17,11 +24,13 @@
     "@nestjs/platform-express": "^10.4.18",
     "@nestjs/typeorm": "^10.0.0",
     "bcrypt": "^5.1.0",
+    "class-transform": "^0.7.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.12.2",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.10.0",
+    "pgvector": "^0.2.1",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^5.0.0",
     "rxjs": "^7.8.0",
@@ -41,6 +50,7 @@
     "supertest": "^7.1.1",
     "ts-jest": "^29.3.4",
     "ts-node": "^10.0.0",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.0.0"
   }
 }

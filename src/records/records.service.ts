@@ -4,16 +4,19 @@ import {
     Injectable,
     Logger,
     NotFoundException,
-    ForbiddenException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Brackets, Repository, SelectQueryBuilder } from "typeorm";
 import { Record } from "./entities/record.entity";
 import { CreateRecordDto } from "./dtos/create-record.dto";
 import { UpdateRecordDto } from "./dtos/update-record.dto";
 import { RecordVerificationStatus } from "./enums/record-verification-status.enum";
 import { AuditLogsService } from "src/audit-logs/audit-logs.service";
 import { VA_ACTION } from "src/audit-logs/enums/va-action.enum";
+import { UserRole } from "src/users/enums/role.enum";
+import { SearchRecordsDto } from "./dtos/search-record.dto";
+import { SearchResponseDto } from "./dtos/search-response.dto";
+import { EmbeddingsService } from "./embedding.service";
 
 @Injectable()
 export class RecordsService {
@@ -23,11 +26,25 @@ export class RecordsService {
     constructor(
         @InjectRepository(Record)
         private readonly recordRepo: Repository<Record>,
-        private readonly auditLogService: AuditLogsService
+        private readonly auditLogService: AuditLogsService,
+        private readonly embeddingService: EmbeddingsService
     ) {}
 
     async create(data: CreateRecordDto, userId: string) {
-        let record = this.recordRepo.create(data);
+        const textToEmbed = `${
+            data.property_address ?? data.property_address
+        } ${data.borrower_name ?? data.borrower_name} ${data.apn ?? data.apn}`;
+
+        const embedding = await this.embeddingService.generateVectorEmbedding(
+            textToEmbed
+        );
+
+        let record = this.recordRepo.create({
+            ...data,
+            entered_by: userId,
+            entered_by_date: new Date(),
+        });
+        record.embedding = `[${embedding.join(",")}]`;
         record = await this.recordRepo.save(record);
 
         await this.auditLogService.createAuditLog({
@@ -179,15 +196,33 @@ export class RecordsService {
                 "Only records with PENDING status can be edited"
             );
         }
+
         const temporaryEditLock =
-            record.locked_by != "" && record.lock_timestamp !== null;
+            record.locked_by !== "" && record.lock_timestamp !== null;
         if (temporaryEditLock) {
             throw new ConflictException(
                 "Please wait! Record is temporarily locked and cannot be edited"
             );
         }
+
         const oldValues = { ...record };
-        Object.assign(record, data);
+
+        let embedding;
+        const hasTextChange =
+            data.property_address !== record.property_address ||
+            data.borrower_name !== record.borrower_name;
+
+        if (hasTextChange) {
+            embedding = await this.embeddingService.generateVectorEmbedding(
+                `${data.property_address ?? record.property_address} ${
+                    data.borrower_name ?? record.borrower_name
+                }`
+            );
+        }
+
+        Object.assign(record, { ...data });
+        if (hasTextChange) record.embedding = `[${embedding!.join(",")}]`;
+
         record = await this.recordRepo.save(record);
 
         await this.auditLogService.createAuditLog({
@@ -228,7 +263,9 @@ export class RecordsService {
                 break;
 
             default:
-                throw new BadRequestException(`${status} is not a valid action`);
+                throw new BadRequestException(
+                    `${status} is not a valid action`
+                );
         }
         record.status = status;
         record.reviewed_by = reviewerId;
@@ -278,5 +315,253 @@ export class RecordsService {
         query.orderBy("record.created_at", "DESC").skip(offset).take(limit);
         const [records, total] = await query.getManyAndCount();
         return { total, records };
+    }
+
+    private applySearchFilter(
+        qb: SelectQueryBuilder<Record>,
+        field: string,
+        searchTerm: string
+    ): void {
+        switch (field) {
+            case "property_address":
+                qb.where(
+                    "LOWER(record.property_address) LIKE LOWER(:searchTerm)",
+                    { searchTerm }
+                );
+                break;
+            case "apn":
+                qb.where("LOWER(record.apn) LIKE LOWER(:searchTerm)", {
+                    searchTerm,
+                });
+                break;
+            case "borrower_name":
+                qb.where(
+                    "LOWER(record.borrower_name) LIKE LOWER(:searchTerm)",
+                    { searchTerm }
+                );
+                break;
+            case "all":
+            default:
+                qb.where(
+                    new Brackets((qb) => {
+                        qb.where(
+                            "LOWER(record.property_address) LIKE LOWER(:searchTerm)",
+                            { searchTerm }
+                        )
+                            .orWhere(
+                                "LOWER(record.borrower_name) LIKE LOWER(:searchTerm)",
+                                { searchTerm }
+                            )
+                            .orWhere(
+                                "LOWER(record.apn) LIKE LOWER(:searchTerm)",
+                                { searchTerm }
+                            );
+                    })
+                );
+                break;
+        }
+    }
+
+    async searchRecords(
+        searchDto: SearchRecordsDto,
+        userId: string,
+        userRole: string
+    ): Promise<SearchResponseDto> {
+        const { query, field = "all", limit = 10, offset = 0 } = searchDto;
+
+        if (!query || query.trim().length < 2) {
+            return {
+                total: 0,
+                records: [],
+                hasMore: false,
+            };
+        }
+        const searchTerm = `%${query.trim()}%`;
+        const baseQueryBuilder = this.recordRepo
+            .createQueryBuilder("record")
+            .select([
+                "record.id",
+                "record.property_address",
+                "record.borrower_name",
+                "record.apn",
+                "record.transaction_date",
+                "record.loan_amount",
+                "record.sales_price",
+                "record.status",
+                "record.created_at",
+            ]);
+        this.applySearchFilter(baseQueryBuilder, field, searchTerm);
+
+        if (userRole === UserRole.VA) {
+            baseQueryBuilder.andWhere("record.assigned_to = :userId", {
+                userId,
+            });
+        }
+        baseQueryBuilder
+            .orderBy("record.created_at", "DESC")
+            .skip(offset)
+            .take(limit + 1);
+
+        const records = await baseQueryBuilder.getMany();
+        const hasMore = records.length > limit;
+        if (hasMore) records.pop();
+
+        const countQuery = this.recordRepo
+            .createQueryBuilder("record")
+            .select("COUNT(*)", "total");
+
+        this.applySearchFilter(countQuery, field, searchTerm);
+
+        if (userRole === UserRole.VA) {
+            countQuery.andWhere("record.assigned_to = :userId", { userId });
+        }
+        const totalResult = await countQuery.getRawOne();
+        const total = parseInt(totalResult.total);
+
+        return {
+            total,
+            records: records.map((record) => ({
+                id: record.id,
+                property_address: record.property_address,
+                borrower_name: record.borrower_name,
+                apn: record.apn,
+                transaction_date: record.transaction_date,
+                loan_amount: record.loan_amount,
+                status: record.status,
+            })),
+            hasMore,
+        };
+    }
+
+    async autoComplete(
+        query: string,
+        field: string = "all",
+        limit: number = 10,
+        userId: string,
+        userRole: string
+    ): Promise<string[]> {
+        if (!query || query.trim().length < 2) {
+            return [];
+        }
+
+        const searchTerm = `%${query.trim()}%`;
+        let queryBuilder = this.recordRepo.createQueryBuilder("record");
+
+        switch (field) {
+            case "property_address":
+                queryBuilder
+                    .select("DISTINCT record.property_address", "value")
+                    .where(
+                        "LOWER(record.property_address) LIKE LOWER(:searchTerm)",
+                        { searchTerm }
+                    );
+                break;
+
+            case "apn":
+                queryBuilder
+                    .select("DISTINCT record.apn", "value")
+                    .where("LOWER(record.apn) LIKE LOWER(:searchTerm)", {
+                        searchTerm,
+                    });
+                break;
+
+            case "borrower_name":
+                queryBuilder
+                    .select("DISTINCT record.borrower_name", "value")
+                    .where(
+                        "LOWER(record.borrower_name) LIKE LOWER(:searchTerm)",
+                        { searchTerm }
+                    );
+                break;
+
+            default: // return mixed results for 'all' field
+                const addresses = await this.recordRepo
+                    .createQueryBuilder("record")
+                    .select("DISTINCT record.property_address", "value")
+                    .where(
+                        "LOWER(record.property_address) LIKE LOWER(:searchTerm)",
+                        { searchTerm }
+                    )
+                    .limit(Math.ceil(limit / 3))
+                    .getRawMany();
+
+                const borrowers = await this.recordRepo
+                    .createQueryBuilder("record")
+                    .select("DISTINCT record.borrower_name", "value")
+                    .where(
+                        "LOWER(record.borrower_name) LIKE LOWER(:searchTerm)",
+                        { searchTerm }
+                    )
+                    .limit(Math.ceil(limit / 3))
+                    .getRawMany();
+
+                const apns = await this.recordRepo
+                    .createQueryBuilder("record")
+                    .select("DISTINCT record.apn", "value")
+                    .where("LOWER(record.apn) LIKE LOWER(:searchTerm)", {
+                        searchTerm,
+                    })
+                    .limit(Math.ceil(limit / 3))
+                    .getRawMany();
+
+                return [
+                    ...addresses.map((r) => r.value),
+                    ...borrowers.map((r) => r.value),
+                    ...apns.map((r) => r.value),
+                ].slice(0, limit);
+        }
+
+        if (userRole === UserRole.VA) {
+            queryBuilder.andWhere("record.assigned_to = :userId", { userId });
+        }
+
+        queryBuilder.limit(limit).orderBy("value", "ASC");
+
+        const results = await queryBuilder.getRawMany();
+        return results
+            .map((result) => result.value)
+            .filter((value) => value && value.trim());
+    }
+
+    async smartSuggestions(
+        query: string,
+        limit: number = 10,
+        userId: string,
+        userRole: string
+    ): Promise<string[]> {
+        if (!query || query.trim().length < 2) return [];
+
+        const embedding = await this.embeddingService.generateVectorEmbedding(
+            query
+        );
+
+        // convert embedding array to vector format
+        const vectorString = `[${embedding.join(",")}]`;
+
+        let sql = `
+            SELECT property_address, borrower_name, apn
+            FROM records
+            WHERE embedding IS NOT NULL
+        `;
+
+        const params: any[] = [vectorString];
+
+        if (userRole === "VA") {
+            sql += ` AND assigned_to = $2`;
+            params.push(userId);
+        }
+
+        sql += ` ORDER BY embedding <#> $1::vector LIMIT $${params.length + 1}`;
+        params.push(limit * 3);
+
+        const records = await this.recordRepo.query(sql, params);
+        const suggestions = new Set<string>();
+
+        for (const r of records) {
+            [r.property_address, r.borrower_name, r.apn].forEach((val) => {
+                if (val && val.trim()) suggestions.add(val.trim());
+            });
+        }
+        return [...suggestions].slice(0, limit);
     }
 }

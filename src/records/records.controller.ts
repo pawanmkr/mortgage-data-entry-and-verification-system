@@ -19,6 +19,7 @@ import { Request } from "express";
 import { UpdateRecordDto } from "./dtos/update-record.dto";
 import { RecordVerificationStatus } from "./enums/record-verification-status.enum";
 import { UserRole } from "src/users/enums/role.enum";
+import { SearchRecordsDto } from "./dtos/search-record.dto";
 
 interface AuthenticatedRequest extends Request {
     user: { id: string; [key: string]: any };
@@ -36,7 +37,6 @@ export class RecordsController {
         @Body() body: CreateRecordDto,
         @Req() req: AuthenticatedRequest
     ) {
-        // TODO: audit log entry
         return this.recordsService.create(body, req.user.userId);
     }
 
@@ -58,12 +58,46 @@ export class RecordsController {
         );
     }
 
+    @Get("search")
+    @UseGuards(JwtAuthGuard)
+    async searchRecords(
+        @Query() searchDto: SearchRecordsDto,
+        @Req() req: AuthenticatedRequest
+    ) {
+        return this.recordsService.searchRecords(
+            searchDto,
+            req.user.userId,
+            req.user.role
+        );
+    }
+
+    @Get("autocomplete")
+    @UseGuards(JwtAuthGuard)
+    async autoComplete(
+        @Query("q") query: string,
+        @Query("field") field: string = "all",
+        @Query("limit") limit: number = 10,
+        @Req() req: AuthenticatedRequest
+    ) {
+        // return this.recordsService.autoComplete(
+        //     query,
+        //     field,
+        //     limit,
+        //     req.user.userId,
+        //     req.user.role
+        // );
+        return this.recordsService.smartSuggestions(
+            query,
+            limit,
+            req.user.userId,
+            req.user.role
+        );
+    }
+
     @Get(":id")
     findOneRecord(@Param("id") id: string) {
         return this.recordsService.findOne(id);
     }
-
-    // find all records assigned to VA (role=va)
 
     @Put(":id/lock")
     @UseGuards(JwtAuthGuard)

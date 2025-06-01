@@ -1,3 +1,4 @@
+import pgvector from "pgvector";
 import {
     Entity,
     PrimaryGeneratedColumn,
@@ -6,6 +7,7 @@ import {
     UpdateDateColumn,
     ManyToOne,
     OneToMany,
+    JoinColumn,
 } from "typeorm";
 import { RecordVerificationStatus } from "../enums/record-verification-status.enum";
 import { User } from "../../users/entities/user.entity";
@@ -23,8 +25,12 @@ export class Record {
     @ManyToOne(() => User, (user) => user.created_records)
     entered_by!: string;
 
-    @ManyToOne(() => Batch, (batch) => batch.records)
-    batch_id!: string;
+    @ManyToOne(() => Batch, (batch) => batch.records, { nullable: true })
+    @JoinColumn({ name: "batch_id" })
+    batch!: Batch | null;
+
+    @Column({ nullable: true })
+    batch_id!: string | null;
 
     @OneToMany(() => AuditLog, (audit_log) => audit_log.record_id)
     audit_logs!: AuditLog[];
@@ -67,6 +73,9 @@ export class Record {
 
     @Column({ nullable: true, type: "timestamp" })
     reviewed_by_date!: Date | null;
+
+    @Column({ nullable: true })
+    embedding!: string;
 
     @CreateDateColumn()
     created_at!: Date;

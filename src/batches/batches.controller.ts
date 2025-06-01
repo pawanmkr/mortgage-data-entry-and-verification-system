@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Get, UseGuards } from "@nestjs/common";
+import {
+    Controller,
+    Post,
+    Body,
+    Get,
+    UseGuards,
+    Param,
+    Delete,
+    Query,
+} from "@nestjs/common";
 import { BatchesService } from "./batches.service";
 import { BatchType } from "./enums/batch-type.enum";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
@@ -22,5 +31,32 @@ export class BatchesController {
     @Roles(UserRole.ADMIN)
     findAll() {
         return this.service.findAll();
+    }
+
+    @Post("/assign-records")
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    assignRecordsToBatch(
+        @Body() body: { batchId: string; recordIds: string[] }
+    ) {
+        return this.service.assignRecordsToBatch(body.batchId, body.recordIds);
+    }
+
+    @Get(":batchId/records")
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    getRecordsInBatch(
+        @Param("batchId") batchId: string,
+        @Query("limit") limit: number = 10,
+        @Query("offset") offset: number = 0
+    ) {
+        return this.service.getRecordsInBatch(batchId, limit, offset);
+    }
+
+    @Post("/unassign-records")
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    unassignRecordsFromBatch(@Body() body: { recordIds: string[] }) {
+        return this.service.unassignRecordsFromBatch(body.recordIds);
     }
 }

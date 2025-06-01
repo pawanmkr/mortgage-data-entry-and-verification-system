@@ -13,7 +13,7 @@ export class Batch {
     @PrimaryGeneratedColumn("uuid")
     id!: string;
 
-    @OneToMany(() => Record, (record) => record.batch_id)
+    @OneToMany(() => Record, (record) => record.batch)
     records!: Record[];
 
     @Column({ unique: true })

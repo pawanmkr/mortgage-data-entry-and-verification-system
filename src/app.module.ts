@@ -45,7 +45,8 @@ import { HttpLogger } from "./common/middlewares/http_logger.middleware";
                 benchmark: true,
                 logging: false,
                 autoLoadEntities: true,
-                synchronize: configService.getOrThrow("NODE_ENV"),
+                synchronize:
+                    configService.getOrThrow("NODE_ENV") === "development",
                 retryAttempts: 0,
                 retryDelay: 2000,
             }),
