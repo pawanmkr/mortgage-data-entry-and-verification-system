@@ -1,16 +1,26 @@
 import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { CacheModule } from "@nestjs/cache-manager";
+
 import { AuthModule } from "./auth/auth.module";
 import { UsersModule } from "./users/users.module";
 import { RecordsModule } from "./records/records.module";
 import { BatchesModule } from "./batches/batches.module";
 import { AuditLogsModule } from "./audit-logs/audit-logs.module";
 import { HttpLogger } from "./common/middlewares/http_logger.middleware";
+import { ScheduleModule } from "@nestjs/schedule";
+import { TaskModule } from "./task/task.module";
+import { ImagesModule } from "./images/images.module";
 
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true }),
+        CacheModule.register({
+            isGlobal: true,
+            max: 1000, // maximum number of items
+        }),
+        ScheduleModule.forRoot(),
         TypeOrmModule.forRootAsync({
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({
@@ -56,6 +66,8 @@ import { HttpLogger } from "./common/middlewares/http_logger.middleware";
         RecordsModule,
         BatchesModule,
         AuditLogsModule,
+        TaskModule,
+        ImagesModule,
     ],
 })
 export class AppModule implements NestModule {

@@ -1,7 +1,7 @@
-import { AutoCompleteResponseDto } from "./autocomplete-response.dto";
+import { RecordInterface } from "../interfaces/record.interface";
 
 export class SearchResponseDto {
     total!: number;
-    records!: AutoCompleteResponseDto[];
+    records!: RecordInterface[];
     hasMore!: boolean;
 }

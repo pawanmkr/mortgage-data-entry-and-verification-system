@@ -14,11 +14,11 @@ export class AuditLog {
     @PrimaryGeneratedColumn("uuid")
     id!: string;
 
-    @ManyToOne(() => Record, (record) => record.audit_logs)
+    @Column({ nullable: false })
     record_id!: string;
 
-    @ManyToOne(() => User, (user) => user.audit_logs)
-    user_id!: string;
+    @Column({ nullable: false })
+    changed_by!: string;
 
     @Column({ nullable: false })
     action!: VA_ACTION;

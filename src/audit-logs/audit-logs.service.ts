@@ -10,7 +10,7 @@ export class AuditLogsService {
         private readonly auditRepo: Repository<AuditLog>
     ) {}
 
-    createAuditLog(data: Omit<AuditLog, "id" | "timestamp">) {
+    log(data: Omit<AuditLog, "id" | "timestamp">) {
         const log = this.auditRepo.create(data);
         return this.auditRepo.save(log);
     }

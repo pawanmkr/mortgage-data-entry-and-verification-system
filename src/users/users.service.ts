@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 import { User } from "./entities/user.entity";
+import { UserRole } from "./enums/role.enum";
 
 @Injectable()
 export class UsersService {
@@ -24,6 +25,13 @@ export class UsersService {
                 updated_at: true,
             },
             where: { id },
+        });
+    }
+
+    async getLeastAssignedVa(): Promise<User | null> {
+        return this.userRepository.findOne({
+            where: { role: UserRole.VA },
+            order: { total_assigned_records: "ASC" },
         });
     }
 }

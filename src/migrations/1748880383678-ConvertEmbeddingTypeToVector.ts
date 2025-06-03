@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class ConvertEmbeddingToVector1748773917199
+export class ConvertEmbeddingTypeToVector1748880383678
     implements MigrationInterface
 {
     public async up(queryRunner: QueryRunner): Promise<void> {

@@ -9,21 +9,22 @@ import {
     Req,
     Logger,
     Query,
+    BadRequestException,
+    UploadedFile,
+    UseInterceptors,
 } from "@nestjs/common";
 import { RecordsService } from "./records.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { Roles } from "../common/decorators/roles.decorator";
 import { RolesGuard } from "../common/guards/roles.guard";
 import { CreateRecordDto } from "./dtos/create-record.dto";
-import { Request } from "express";
 import { UpdateRecordDto } from "./dtos/update-record.dto";
 import { RecordVerificationStatus } from "./enums/record-verification-status.enum";
 import { UserRole } from "src/users/enums/role.enum";
 import { SearchRecordsDto } from "./dtos/search-record.dto";
-
-interface AuthenticatedRequest extends Request {
-    user: { id: string; [key: string]: any };
-}
+import { FileInterceptor } from "@nestjs/platform-express";
+import { diskStorage } from "multer";
+import { AuthenticatedRequest } from "./interfaces/authenticated-request.interface";
 
 @Controller("records")
 export class RecordsController {
@@ -33,11 +34,39 @@ export class RecordsController {
 
     @Post()
     @UseGuards(JwtAuthGuard)
-    createRecord(
-        @Body() body: CreateRecordDto,
+    @UseInterceptors(
+        FileInterceptor("file", {
+            storage: diskStorage({
+                destination: "./uploads/tiffs",
+                filename: (req, file, cb) => {
+                    const name = file.originalname.replace(/\s+/g, "_");
+                    cb(null, `${Date.now()}-${name}`);
+                },
+            }),
+            fileFilter: (req, file, cb) => {
+                if (
+                    file.mimetype === "image/tiff" ||
+                    file.originalname.endsWith(".tif") ||
+                    file.originalname.endsWith(".tiff")
+                ) {
+                    cb(null, true);
+                } else {
+                    cb(
+                        new BadRequestException("Only TIFF files are allowed"),
+                        false
+                    );
+                }
+            },
+            limits: { fileSize: 10 * 1024 * 1024 },
+        })
+    )
+    async create(
+        @UploadedFile() file: Express.Multer.File,
+        @Body("meta") meta: string,
         @Req() req: AuthenticatedRequest
     ) {
-        return this.recordsService.create(body, req.user.userId);
+        const parsedMeta: CreateRecordDto = JSON.parse(meta);
+        return this.recordsService.create(parsedMeta, file, req.user.username);
     }
 
     @Get("assigned")
@@ -79,17 +108,10 @@ export class RecordsController {
         @Query("limit") limit: number = 10,
         @Req() req: AuthenticatedRequest
     ) {
-        // return this.recordsService.autoComplete(
-        //     query,
-        //     field,
-        //     limit,
-        //     req.user.userId,
-        //     req.user.role
-        // );
-        return this.recordsService.smartSuggestions(
+        return this.recordsService.autocompleteVectorSearch(
             query,
             limit,
-            req.user.userId,
+            req.user.username,
             req.user.role
         );
     }
@@ -102,25 +124,20 @@ export class RecordsController {
     @Put(":id/lock")
     @UseGuards(JwtAuthGuard)
     lockRecord(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
-        return this.recordsService.lock(id, req.user.userId);
+        return this.recordsService.lock(id, req.user.username);
     }
 
     @Put(":id/unlock")
     @UseGuards(JwtAuthGuard)
     unlockRecord(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
-        return this.recordsService.unlock(id, req.user.userId);
+        return this.recordsService.manualRecordUnlock(id, req.user.username);
     }
 
-    // Admin-only reassign endpoint
-    @Put(":id/reassign")
+    @Put(":id/assign")
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
-    reassignRecord(
-        @Param("id") id: string,
-        @Body("newUserId") newUserId: string,
-        @Req() req: AuthenticatedRequest
-    ) {
-        return this.recordsService.reassign(id, newUserId, req.user.userId);
+    assignRecord(@Param("id") id: string, @Body("assignTo") assignTo: string) {
+        return this.recordsService.assignRecord(id, assignTo);
     }
 
     @Put(":id")
@@ -130,7 +147,7 @@ export class RecordsController {
         @Body() body: UpdateRecordDto,
         @Req() req: AuthenticatedRequest
     ) {
-        return await this.recordsService.update(id, body, req.user.userId);
+        return await this.recordsService.update(id, body, req.user.username);
     }
 
     @Put(":id/review")
@@ -140,6 +157,6 @@ export class RecordsController {
         @Body("status") status: RecordVerificationStatus,
         @Req() req: AuthenticatedRequest
     ) {
-        return this.recordsService.review(id, status, req.user.userId);
+        return this.recordsService.review(id, status, req.user.username);
     }
 }

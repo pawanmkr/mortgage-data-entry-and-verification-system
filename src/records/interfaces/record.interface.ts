@@ -8,4 +8,6 @@ export interface RecordInterface {
     down_payment: number;
     apn: string;
     status: string;
+    tiff_original_name: string | null;
+    tiff_image_url: string | null;
 }

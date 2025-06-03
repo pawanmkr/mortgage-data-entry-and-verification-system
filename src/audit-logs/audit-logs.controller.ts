@@ -8,6 +8,6 @@ export class AuditLogsController {
 
     @Post()
     logAction(@Body() body: Omit<AuditLog, "timestamp">) {
-        return this.service.createAuditLog(body);
+        return this.service.log(body);
     }
 }
